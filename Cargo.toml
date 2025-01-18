@@ -1,0 +1,19 @@
+[package]
+name = "bevy_2delight_physics"
+description = "A simple 2d physics system that's _delight_ful to use"
+version = "0.2.0"
+edition = "2021"
+authors = ["Mark Pekala <mfpekala@gmail.com>"]
+exclude = ["assets/*"]
+license = "MIT"
+homepage = "https://github.com/dream-lake-games/bevy_2delight_physics"
+repository = "https://github.com/dream-lake-games/bevy_2delight_physics"
+readme = "README.md"
+
+[dependencies]
+# TODO: We don't need all the features, but it's probably fine idk
+bevy = "0.15"
+
+[[example]]
+name = "platformer"
+path = "examples/platformer/main.rs"
