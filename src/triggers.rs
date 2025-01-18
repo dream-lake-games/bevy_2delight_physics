@@ -7,13 +7,13 @@ pub trait TriggerKind:
 {
 }
 
-struct TriggerRxComp<TriggerRxKind: TriggerKind> {
-    kind: TriggerRxKind,
-    hbox: HBox,
+pub(crate) struct TriggerRxComp<TriggerRxKind: TriggerKind> {
+    pub(crate) kind: TriggerRxKind,
+    pub(crate) hbox: HBox,
 }
 #[derive(Component)]
 pub struct TriggerRx<TriggerRxKind: TriggerKind> {
-    comps: Vec<TriggerRxComp<TriggerRxKind>>,
+    pub(crate) comps: Vec<TriggerRxComp<TriggerRxKind>>,
     pub coll_keys: Vec<CollKey>,
 }
 impl<TriggerRxKind: TriggerKind> TriggerRx<TriggerRxKind> {
@@ -31,13 +31,13 @@ impl<TriggerRxKind: TriggerKind> TriggerRx<TriggerRxKind> {
     }
 }
 
-struct TriggerTxComp<TriggerTxKind: TriggerKind> {
-    kind: TriggerTxKind,
-    hbox: HBox,
+pub(crate) struct TriggerTxComp<TriggerTxKind: TriggerKind> {
+    pub(crate) kind: TriggerTxKind,
+    pub(crate) hbox: HBox,
 }
 #[derive(Component)]
 pub struct TriggerTx<TriggerTxKind: TriggerKind> {
-    comps: Vec<TriggerTxComp<TriggerTxKind>>,
+    pub(crate) comps: Vec<TriggerTxComp<TriggerTxKind>>,
     pub coll_keys: Vec<CollKey>,
 }
 impl<TriggerTxKind: TriggerKind> TriggerTx<TriggerTxKind> {

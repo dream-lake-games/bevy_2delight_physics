@@ -37,10 +37,11 @@ pub struct StaticCollRec {
 }
 #[derive(Resource, Debug, Reflect)]
 pub struct StaticColls {
-    map: HashMap<CollKey, StaticCollRec>,
+    pub(crate) map: HashMap<CollKey, StaticCollRec>,
 }
 impl StaticColls {
-    pub(crate) fn insert(&mut self, key: CollKey, rec: StaticCollRec) {
+    pub(crate) fn insert(&mut self, rec: StaticCollRec) {
+        let key = self.map.len() as CollKey;
         self.map.insert(key, rec);
     }
     pub fn get(&self, key: &CollKey) -> Option<&StaticCollRec> {
@@ -56,22 +57,32 @@ impl StaticColls {
 
 #[derive(Debug, Clone, Reflect)]
 pub struct TriggerCollRec<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
-    pub pos: Pos,
+    /// Position of rx at time of collision
+    pub rx_pos: Pos,
+    /// Entity of the control associated with the rx
     pub rx_ctrl: Entity,
+    /// The kind of the rx
     pub rx_kind: TriggerRxKind,
+    /// The marker of the hbox on the rx triggering this collision
     pub rx_hbox: HBoxMarker,
+    /// Position of tx at time of collision
+    pub tx_pos: Pos,
+    /// Entity of the control associated with the tx
     pub tx_ctrl: Entity,
+    /// The kind of the tx
     pub tx_kind: TriggerTxKind,
+    /// The marker of the hbox on the tx triggering this collision
     pub tx_hbox: HBoxMarker,
 }
 #[derive(Resource, Debug, Reflect)]
 pub struct TriggerColls<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
-    map: HashMap<CollKey, TriggerCollRec<TriggerRxKind, TriggerTxKind>>,
+    pub(crate) map: HashMap<CollKey, TriggerCollRec<TriggerRxKind, TriggerTxKind>>,
 }
 impl<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>
     TriggerColls<TriggerRxKind, TriggerTxKind>
 {
-    pub fn insert(&mut self, key: CollKey, rec: TriggerCollRec<TriggerRxKind, TriggerTxKind>) {
+    pub fn insert(&mut self, rec: TriggerCollRec<TriggerRxKind, TriggerTxKind>) {
+        let key = self.map.len() as CollKey;
         self.map.insert(key, rec);
     }
     pub fn get(&self, key: &CollKey) -> Option<&TriggerCollRec<TriggerRxKind, TriggerTxKind>> {

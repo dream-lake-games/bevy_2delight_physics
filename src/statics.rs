@@ -15,13 +15,13 @@ pub enum StaticTxKind {
     Solid,
 }
 
-struct StaticRxComp {
-    kind: StaticRxKind,
-    hbox: HBox,
+pub(crate) struct StaticRxComp {
+    pub(crate) kind: StaticRxKind,
+    pub(crate) hbox: HBox,
 }
 #[derive(Component)]
 pub struct StaticRx {
-    comps: Vec<StaticRxComp>,
+    pub(crate) comps: Vec<StaticRxComp>,
     pub coll_keys: Vec<CollKey>,
 }
 impl StaticRx {
@@ -39,13 +39,13 @@ impl StaticRx {
     }
 }
 
-struct StaticTxComp {
-    kind: StaticTxKind,
-    hbox: HBox,
+pub(crate) struct StaticTxComp {
+    pub(crate) kind: StaticTxKind,
+    pub(crate) hbox: HBox,
 }
 #[derive(Component)]
 pub struct StaticTx {
-    comps: Vec<StaticTxComp>,
+    pub(crate) comps: Vec<StaticTxComp>,
     pub coll_keys: Vec<CollKey>,
 }
 impl StaticTx {

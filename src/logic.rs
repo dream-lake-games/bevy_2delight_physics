@@ -1,10 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
-    colls::{CollKey, StaticColls, TriggerColls},
+    colls::{StaticCollRec, StaticColls, TriggerCollRec, TriggerColls},
     dyno::Dyno,
+    hbox::HBox,
     pos::Pos,
-    prelude::{BulletTime, BulletTimeClass, StaticRx, StaticTx, TriggerKind, TriggerRx, TriggerTx},
+    prelude::{
+        BulletTime, BulletTimeClass, StaticRx, StaticRxKind, StaticTx, StaticTxKind, TriggerKind,
+        TriggerRx, TriggerTx,
+    },
     PhysicsSet,
 };
 
@@ -51,185 +55,186 @@ fn move_static_txs<TimeClass: BulletTimeClass>(
 /// Resolves collisions for a single entity.
 /// If it has statics, it resolves static collisions and may update pos and vel
 /// If it has triggers, it will trigger as needed (duh)
-// fn resolve_collisions(
-//     my_eid: Entity,
-//     my_pos: &mut Pos,
-//     my_vel: &mut Vec2,
-//     my_srx_comps: &[&StaticRxComp],
-//     my_trx_comps: &[&TriggerRxComp],
-//     pos_q: &Query<
-//         &mut Pos,
-//         Or<(
-//             With<StaticRxCtrl>,
-//             With<StaticTxCtrl>,
-//             With<TriggerRxCtrl>,
-//             With<TriggerTxCtrl>,
-//         )>,
-//     >,
-//     stx_comps: &Query<&StaticTxComp>,
-//     ttx_comps: &Query<&TriggerTxComp>,
-//     static_coll_counter: &mut CollKey,
-//     trigger_coll_counter: &mut CollKey,
-//     static_colls: &mut ResMut<StaticColls>,
-//     trigger_colls: &mut ResMut<TriggerColls>,
-//     srx_ctrls: &mut Query<&mut StaticRxCtrl>,
-//     stx_ctrls: &mut Query<&mut StaticTxCtrl>,
-//     trx_ctrls: &mut Query<&mut TriggerRxCtrl>,
-//     ttx_ctrls: &mut Query<&mut TriggerTxCtrl>,
-//     dyno_q: &Query<&mut Dyno>,
-//     commands: &mut Commands,
-// ) {
-//     macro_rules! translate_other {
-//         ($comp:expr) => {{
-//             let tmp_pos = pos_q
-//                 .get($comp.ctrl)
-//                 .expect("Bad pos in translate_other")
-//                 .clone();
-//             $comp.hbox.translated(tmp_pos.x, tmp_pos.y)
-//         }};
-//     }
-//     macro_rules! add_ctrl_coll {
-//         ($q:expr, $eid:expr, $key:expr) => {{
-//             match $q.get_mut($eid) {
-//                 Ok(mut thing) => {
-//                     thing.coll_keys.push($key);
-//                 }
-//                 Err(e) => {
-//                     warn!("fucky stuff happening in resolve_collisions::add_ctrl_coll: {e:?}");
-//                 }
-//             };
-//         }};
-//     }
+fn resolve_collisions<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
+    my_eid: Entity,
+    my_pos: &mut Pos,
+    my_vel: &mut Vec2,
+    my_srx: Option<(Entity, &StaticRx)>,
+    my_trx: Option<(Entity, &TriggerRx<TriggerRxKind>)>,
+    pos_q: &Query<&mut Pos>,
+    dyno_q: &Query<&mut Dyno>,
+    stx_q: &Query<(Entity, &mut StaticTx)>,
+    ttx_q: &Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
+    static_colls: &mut ResMut<StaticColls>,
+    trigger_colls: &mut ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+) {
+    // Handle static collisions
+    struct StaticCollCandidate {
+        eid: Entity,
+        pos: Pos,
+        kind: StaticTxKind,
+        thbox: HBox,
+    }
 
-//     // First handle static collisions
-//     for my_srx_comp in my_srx_comps {
-//         let mut my_thbox = my_srx_comp.hbox.translated(my_pos.x, my_pos.y);
-//         // TODO: Performance engineer if needed
-//         // In order to avoid weird behavior when sliding along a straight edge, do this
-//         // First filter to only things it's colliding with
-//         let mut can_possibly_collide = stx_comps
-//             .iter()
-//             .filter(|other_stx_comp| {
-//                 let other_hbox = translate_other!(other_stx_comp);
-//                 my_thbox.overlaps_with(&other_hbox)
-//             })
-//             .collect::<Vec<_>>();
-//         // Then sort by area overlapping
-//         can_possibly_collide.sort_by(|a, b| {
-//             let ahbox = translate_other!(a);
-//             let bhbox = translate_other!(b);
-//             let dist_a = ahbox.area_overlapping_assuming_overlap(&my_thbox);
-//             let dist_b = bhbox.area_overlapping_assuming_overlap(&my_thbox);
-//             dist_b.total_cmp(&dist_a)
-//         });
-//         for other_stx_comp in can_possibly_collide {
-//             if other_stx_comp.ctrl == my_eid {
-//                 // Don't collide with ourselves, stupid
-//                 continue;
-//             }
-//             let other_thbox = translate_other!(other_stx_comp);
-//             if let Some(push) = my_thbox.get_push_out(&other_thbox) {
-//                 // STATIC COLLISION HERE (maybe)
-//                 let tx_dyno = dyno_q.get(other_stx_comp.ctrl).cloned().unwrap_or_default();
+    // Update all pos/dyno for static collisions, create records
+    if let Some((_, my_srx)) = my_srx {
+        for my_srx_comp in &my_srx.comps {
+            let mut my_thbox = my_srx_comp.hbox.translated(my_pos.x, my_pos.y);
+            // TODO: Performance engineer if needed
+            // In order to avoid weird behavior when sliding along a straight edge, do this
+            // First filter to only things it's colliding with
+            let mut candidates = stx_q
+                .iter()
+                .flat_map(|(eid, stx)| {
+                    let pos = pos_q.get(eid).expect("Missing pos on stx");
+                    stx.comps.iter().map(move |comp| StaticCollCandidate {
+                        eid,
+                        pos: pos.clone(),
+                        kind: comp.kind,
+                        thbox: comp.hbox.translated(pos.x, pos.y),
+                    })
+                })
+                .filter(|candidate| candidate.eid != my_eid)
+                .filter(|candidate| my_thbox.overlaps_with(&candidate.thbox))
+                .collect::<Vec<_>>();
+            candidates.sort_by(|a, b| {
+                //shutup rust
+                let dist_a = a.thbox.area_overlapping_assuming_overlap(&my_thbox);
+                let dist_b = b.thbox.area_overlapping_assuming_overlap(&my_thbox);
+                dist_b.total_cmp(&dist_a)
+            });
+            for candidate in candidates {
+                let Some(push) = my_thbox.get_push_out(&candidate.thbox) else {
+                    // Likely means that resolving an earlier collision pushed us out of this box, do nothing
+                    continue;
+                };
 
-//                 let mut old_perp = my_vel.dot(push.normalize_or_zero()) * push.normalize_or_zero();
-//                 let old_par = *my_vel - old_perp;
-//                 if push.y.abs() > 0.0 {
-//                     old_perp.y -= tx_dyno.vel.y;
-//                 }
+                // COLLISION ACTUALLY HAPPENING
+                let tx_dyno = dyno_q.get(candidate.eid).cloned().unwrap_or_default();
+                let mut old_perp = my_vel.dot(push.normalize_or_zero()) * push.normalize_or_zero();
+                let old_par = *my_vel - old_perp;
+                if push.y.abs() > 0.0 {
+                    old_perp.y -= tx_dyno.vel.y;
+                }
 
-//                 let coll_rec = StaticCollRec {
-//                     pos: my_pos.clone(),
-//                     push,
-//                     rx_perp: old_perp,
-//                     rx_par: old_par,
-//                     rx_ctrl: my_srx_comp.ctrl,
-//                     rx_kind: my_srx_comp.kind,
-//                     rx_hbox: my_srx_comp.hbox.get_marker(),
-//                     tx_ctrl: other_stx_comp.ctrl,
-//                     tx_kind: other_stx_comp.kind,
-//                     tx_hbox: other_stx_comp.hbox.get_marker(),
-//                 };
+                let coll_rec = StaticCollRec {
+                    push,
+                    rx_pos: my_pos.clone(),
+                    rx_perp: old_perp,
+                    rx_par: old_par,
+                    rx_ctrl: my_eid,
+                    rx_kind: my_srx_comp.kind,
+                    rx_hbox: my_srx_comp.hbox.get_marker(),
+                    tx_pos: candidate.pos,
+                    tx_ctrl: candidate.eid,
+                    tx_kind: candidate.kind,
+                    tx_hbox: candidate.thbox.get_marker(),
+                };
 
-//                 let add_coll_rec = || {
-//                     let key = *static_coll_counter;
-//                     *static_coll_counter += 1;
-//                     static_colls.insert(key, coll_rec);
-//                     add_ctrl_coll!(srx_ctrls, my_srx_comp.ctrl, key);
-//                     add_ctrl_coll!(stx_ctrls, other_stx_comp.ctrl, key);
-//                 };
+                let mut do_push = |grr: &mut HBox| {
+                    *my_pos += push;
+                    *grr = grr.translated(push.x, push.y);
+                };
 
-//                 let mut do_push = |grr: &mut HBox| {
-//                     *my_pos += push;
-//                     // NOTE: HAVE TO UPDATE MY_THBOX HERE SINCE POS CHANGED
-//                     *grr = grr.translated(push.x, push.y);
-//                 };
+                match (my_srx_comp.kind, candidate.kind) {
+                    (StaticRxKind::Default, StaticTxKind::Solid) => {
+                        // Solid collision, no breaking
+                        static_colls.insert(coll_rec);
+                        do_push(&mut my_thbox);
+                        *my_vel = old_par + Vec2::new(0.0, tx_dyno.vel.y);
+                        if old_perp.dot(push) > 0.0 {
+                            *my_vel += old_perp;
+                        }
+                    }
+                    // TODO: Do I want this?
+                    // (StaticRxKind::Default, StaticTxKind::PassUp) => {
+                    //     // Any kind of passup
+                    //     if push.y > 0.0
+                    //         && old_perp.y < 0.0
+                    //         && other_thbox.max_y() - 1.1 < my_thbox.min_y()
+                    //     {
+                    //         add_coll_rec();
+                    //         do_push(&mut my_thbox);
+                    //         *my_vel = old_par + Vec2::new(0.0, tx_dyno.vel.y);
+                    //     }
+                    // }
+                    (StaticRxKind::Observe, _) => {
+                        static_colls.insert(coll_rec);
+                    }
+                }
+            }
+        }
+    }
 
-//                 match (my_srx_comp.kind, other_stx_comp.kind) {
-//                     (StaticRxKind::Default, StaticTxKind::Solid | StaticTxKind::SolidFragile)
-//                     | (StaticRxKind::DefaultBreaker, StaticTxKind::Solid) => {
-//                         // Solid collision, no breaking
-//                         add_coll_rec();
-//                         do_push(&mut my_thbox);
-//                         *my_vel = old_par + Vec2::new(0.0, tx_dyno.vel.y);
-//                         if old_perp.dot(push) > 0.0 {
-//                             *my_vel += old_perp;
-//                         }
-//                     }
-//                     (StaticRxKind::DefaultBreaker, StaticTxKind::SolidFragile) => {
-//                         commands.entity(other_stx_comp.ctrl).insert(FragileBroken);
-//                     }
-//                     (
-//                         StaticRxKind::Default | StaticRxKind::DefaultBreaker,
-//                         StaticTxKind::PassUp,
-//                     ) => {
-//                         // Any kind of passup
-//                         if push.y > 0.0
-//                             && old_perp.y < 0.0
-//                             && other_thbox.max_y() - 1.1 < my_thbox.min_y()
-//                         {
-//                             add_coll_rec();
-//                             do_push(&mut my_thbox);
-//                             *my_vel = old_par + Vec2::new(0.0, tx_dyno.vel.y);
-//                         }
-//                     }
-//                     (StaticRxKind::Observe, _) => {
-//                         add_coll_rec();
-//                     }
-//                 }
-//             }
-//         }
-//     }
+    // Handle trigger collisions
+    struct TriggerCollCandidate<InnerTriggerTxKind> {
+        eid: Entity,
+        pos: Pos,
+        kind: InnerTriggerTxKind,
+        thbox: HBox,
+    }
 
-//     // Then handle trigger collisions
-//     for my_trx_comp in my_trx_comps {
-//         let my_thbox = my_trx_comp.hbox.translated(my_pos.x, my_pos.y);
-//         for other_ttx_comp in ttx_comps {
-//             if other_ttx_comp.ctrl == my_eid {
-//                 // Don't collide with ourselves, stupid
-//                 continue;
-//             }
-//             let other_thbox = translate_other!(other_ttx_comp);
-//             if my_thbox.overlaps_with(&other_thbox) {
-//                 // TRIGGER COLLISION HERE
-//                 let coll_rec = TriggerCollRec {
-//                     pos: my_pos.clone(),
-//                     rx_ctrl: my_trx_comp.ctrl,
-//                     rx_kind: my_trx_comp.kind,
-//                     rx_hbox: my_trx_comp.hbox.get_marker(),
-//                     tx_ctrl: other_ttx_comp.ctrl,
-//                     tx_kind: other_ttx_comp.kind,
-//                     tx_hbox: other_ttx_comp.hbox.get_marker(),
-//                 };
-//                 let key = *trigger_coll_counter;
-//                 *trigger_coll_counter += 1;
-//                 trigger_colls.insert(key, coll_rec);
-//                 add_ctrl_coll!(trx_ctrls, my_trx_comp.ctrl, key);
-//                 add_ctrl_coll!(ttx_ctrls, other_ttx_comp.ctrl, key);
-//             }
-//         }
-//     }
-// }
+    // Create trigger coll records
+    if let Some((_, my_trx)) = my_trx {
+        for my_trx_comp in &my_trx.comps {
+            let my_thbox = my_trx_comp.hbox.translated(my_pos.x, my_pos.y);
+            let candidates = ttx_q
+                .iter()
+                .flat_map(|(eid, ttx)| {
+                    let pos = pos_q.get(eid).expect("Missing pos on ttx");
+                    ttx.comps.iter().map(move |comp| TriggerCollCandidate {
+                        eid,
+                        pos: pos.clone(),
+                        kind: comp.kind.clone(),
+                        thbox: comp.hbox.translated(pos.x, pos.y),
+                    })
+                })
+                .filter(|candidate| candidate.eid != my_eid)
+                .filter(|candidate| my_thbox.overlaps_with(&candidate.thbox));
+            for candidate in candidates {
+                let coll_rec = TriggerCollRec {
+                    rx_pos: my_pos.clone(),
+                    rx_ctrl: my_eid,
+                    rx_kind: my_trx_comp.kind.clone(),
+                    rx_hbox: my_trx_comp.hbox.get_marker(),
+                    tx_pos: candidate.pos,
+                    tx_ctrl: candidate.eid,
+                    tx_kind: candidate.kind,
+                    tx_hbox: candidate.thbox.get_marker(),
+                };
+                trigger_colls.insert(coll_rec);
+            }
+        }
+    }
+}
+
+/// As we resolve collisions, we create the collisions records but don't put the corresponding
+/// keys in the needed vecs in the ctrls. This helper does that, assuming all colls have been resolved.
+fn populate_ctrl_coll_keys<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
+    srx_q: &mut Query<(Entity, &mut StaticRx)>,
+    stx_q: &mut Query<(Entity, &mut StaticTx)>,
+    trx_q: &mut Query<(Entity, &mut TriggerRx<TriggerRxKind>)>,
+    ttx_q: &mut Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
+    static_colls: &ResMut<StaticColls>,
+    trigger_colls: &ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+) {
+    for (key, coll) in &static_colls.map {
+        if let Ok((_, mut srx_ctrl)) = srx_q.get_mut(coll.rx_ctrl) {
+            srx_ctrl.coll_keys.push(*key);
+        }
+        if let Ok((_, mut stx_ctrl)) = stx_q.get_mut(coll.tx_ctrl) {
+            stx_ctrl.coll_keys.push(*key);
+        }
+    }
+    for (key, coll) in &trigger_colls.map {
+        if let Ok((_, mut trx_ctrl)) = trx_q.get_mut(coll.rx_ctrl) {
+            trx_ctrl.coll_keys.push(*key);
+        }
+        if let Ok((_, mut ttx_ctrl)) = ttx_q.get_mut(coll.tx_ctrl) {
+            ttx_ctrl.coll_keys.push(*key);
+        }
+    }
+}
 
 /// Moves the interesting stuff and handles collisions
 fn move_interesting_dynos<
@@ -240,13 +245,12 @@ fn move_interesting_dynos<
     bullet_time: Res<BulletTime<TimeClass>>,
     mut pos_q: Query<&mut Pos>,
     mut dyno_q: Query<&mut Dyno>,
-    mut srx_q: Query<&mut StaticRx>,
-    mut stx_q: Query<&mut StaticTx>,
-    mut trx_q: Query<&mut TriggerRx<TriggerRxKind>>,
-    mut ttx_q: Query<&mut TriggerTx<TriggerTxKind>>,
+    mut srx_q: Query<(Entity, &mut StaticRx)>,
+    mut stx_q: Query<(Entity, &mut StaticTx)>,
+    mut trx_q: Query<(Entity, &mut TriggerRx<TriggerRxKind>)>,
+    mut ttx_q: Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
     mut static_colls: ResMut<StaticColls>,
     mut trigger_colls: ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
-    mut commands: Commands,
     // Objects that have a static rx. They may also have a trigger rx.
     // Basically all the stuff we should move in this system
     ents_q: Query<
@@ -258,10 +262,7 @@ fn move_interesting_dynos<
         ),
     >,
 ) {
-    let mut static_coll_counter: CollKey = 0;
-    let mut trigger_coll_counter: CollKey = 0;
-
-    // First move static rxs
+    // First do the moving
     for eid in &ents_q {
         // Get the data
         let mut scratch_pos = pos_q.get(eid).expect("No pos on interesting ent").clone();
@@ -272,26 +273,19 @@ fn move_interesting_dynos<
         // Inch
         macro_rules! call_resolve_collisions {
             () => {{
-                // resolve_collisions(
-                //     eid,
-                //     &mut scratch_pos,
-                //     &mut scratch_vel,
-                //     &my_srx_comps,
-                //     &my_trx_comps,
-                //     &pos_q,
-                //     &stx_comps,
-                //     &ttx_comps,
-                //     &mut static_coll_counter,
-                //     &mut trigger_coll_counter,
-                //     &mut static_colls,
-                //     &mut trigger_colls,
-                //     &mut srx_ctrls,
-                //     &mut stx_ctrls,
-                //     &mut trx_ctrls,
-                //     &mut ttx_ctrls,
-                //     &dyno_q,
-                //     &mut commands,
-                // );
+                resolve_collisions(
+                    eid,
+                    &mut scratch_pos,
+                    &mut scratch_vel,
+                    srx,
+                    trx,
+                    &pos_q,
+                    &dyno_q,
+                    &mut stx_q,
+                    &mut ttx_q,
+                    &mut static_colls,
+                    &mut trigger_colls,
+                )
             }};
         }
         const DELTA_PER_INCH: f32 = 1.0;
@@ -326,6 +320,15 @@ fn move_interesting_dynos<
             set_dyno.vel = scratch_vel;
         }
     }
+    // Then update the records in the controls once
+    populate_ctrl_coll_keys(
+        &mut srx_q,
+        &mut stx_q,
+        &mut trx_q,
+        &mut ttx_q,
+        &static_colls,
+        &trigger_colls,
+    );
 }
 
 pub(super) fn register_logic<
