@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
 pub trait BulletTimeClass:
-    std::fmt::Debug + Default + std::marker::Send + std::marker::Sync + 'static
+    std::fmt::Debug + Default + std::marker::Send + std::marker::Sync + Clone + 'static
 {
     fn to_factor(&self) -> f32;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum BulletTimeClassDefault {
     #[default]
     Normal,
@@ -52,16 +52,19 @@ impl<TimeClass: BulletTimeClass> BulletTimeState<TimeClass> {
 
 /// How much in-game time has happened. Basically time but accounts for slowdown.
 #[derive(Resource, Debug, Default)]
-pub struct BulletTime<TimeClass: BulletTimeClass> {
+pub struct BulletTimeGeneric<TimeClass: BulletTimeClass> {
     state: BulletTimeState<TimeClass>,
     duration: std::time::Duration,
 }
-impl<TimeClass: BulletTimeClass> BulletTime<TimeClass> {
+impl<TimeClass: BulletTimeClass> BulletTimeGeneric<TimeClass> {
     pub fn delta(&self) -> std::time::Duration {
         self.duration
     }
     pub fn delta_secs(&self) -> f32 {
         self.duration.as_secs_f32()
+    }
+    pub fn get_base(&self) -> TimeClass {
+        self.state.base.clone()
     }
     pub fn set_base(&mut self, new_base: TimeClass) {
         self.state.base = new_base;
@@ -78,7 +81,7 @@ impl<TimeClass: BulletTimeClass> BulletTime<TimeClass> {
 }
 
 fn update_bullet_time<TimeClass: BulletTimeClass>(
-    mut bullet_time: ResMut<BulletTime<TimeClass>>,
+    mut bullet_time: ResMut<BulletTimeGeneric<TimeClass>>,
     time: Res<Time>,
 ) {
     bullet_time.state.tick(time.delta_secs());
@@ -91,7 +94,7 @@ pub(crate) struct BulletTimePlugin<TimeClass: BulletTimeClass> {
 }
 impl<TimeClass: BulletTimeClass> Plugin for BulletTimePlugin<TimeClass> {
     fn build(&self, app: &mut App) {
-        app.insert_resource(BulletTime::<TimeClass>::default());
+        app.insert_resource(BulletTimeGeneric::<TimeClass>::default());
         app.add_systems(First, update_bullet_time::<TimeClass>);
     }
 }

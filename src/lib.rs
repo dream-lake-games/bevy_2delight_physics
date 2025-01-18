@@ -1,14 +1,17 @@
 use bevy::prelude::*;
 
 pub mod prelude {
-    pub use super::bullet_time::{BulletTime, BulletTimeClass};
-    pub use super::colls::{ByHBox, StaticCollRec, StaticColls, TriggerCollRec, TriggerColls};
+    pub use super::bullet_time::{BulletTimeClass, BulletTimeGeneric};
+    pub use super::colls::{
+        ByHBox, StaticCollRec, StaticColls, TriggerCollRecGeneric, TriggerCollsGeneric,
+    };
     pub use super::dyno::Dyno;
     pub use super::hbox::{HBox, HBoxMarker};
-    pub use super::plugin::PhysicsPlugin;
+    pub use super::plugin::PhysicsPluginGeneric;
     pub use super::pos::{IPos, Pos};
     pub use super::statics::{StaticRx, StaticRxKind, StaticTx, StaticTxKind};
-    pub use super::triggers::{TriggerKind, TriggerRx, TriggerTx};
+    pub use super::triggers::{TriggerKind, TriggerRxGeneric, TriggerTxGeneric};
+    pub use super::PhysicsSet;
 }
 
 mod bullet_time;

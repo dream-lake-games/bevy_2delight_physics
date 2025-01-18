@@ -4,7 +4,7 @@ use crate::{
     hbox::HBoxMarker,
     pos::Pos,
     statics::{StaticRx, StaticRxKind, StaticTx, StaticTxKind},
-    triggers::{TriggerKind, TriggerRx, TriggerTx},
+    triggers::{TriggerKind, TriggerRxGeneric, TriggerTxGeneric},
     PhysicsSet,
 };
 
@@ -56,7 +56,7 @@ impl StaticColls {
 }
 
 #[derive(Debug, Clone, Reflect)]
-pub struct TriggerCollRec<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
+pub struct TriggerCollRecGeneric<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
     /// Position of rx at time of collision
     pub rx_pos: Pos,
     /// Entity of the control associated with the rx
@@ -75,23 +75,26 @@ pub struct TriggerCollRec<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind
     pub tx_hbox: HBoxMarker,
 }
 #[derive(Resource, Debug, Reflect)]
-pub struct TriggerColls<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
-    pub(crate) map: HashMap<CollKey, TriggerCollRec<TriggerRxKind, TriggerTxKind>>,
+pub struct TriggerCollsGeneric<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind> {
+    pub(crate) map: HashMap<CollKey, TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>,
 }
 impl<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>
-    TriggerColls<TriggerRxKind, TriggerTxKind>
+    TriggerCollsGeneric<TriggerRxKind, TriggerTxKind>
 {
-    pub fn insert(&mut self, rec: TriggerCollRec<TriggerRxKind, TriggerTxKind>) {
+    pub fn insert(&mut self, rec: TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>) {
         let key = self.map.len() as CollKey;
         self.map.insert(key, rec);
     }
-    pub fn get(&self, key: &CollKey) -> Option<&TriggerCollRec<TriggerRxKind, TriggerTxKind>> {
+    pub fn get(
+        &self,
+        key: &CollKey,
+    ) -> Option<&TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>> {
         self.map.get(key)
     }
     pub fn get_refs(
         &self,
         coll_keys: &[CollKey],
-    ) -> Vec<&TriggerCollRec<TriggerRxKind, TriggerTxKind>> {
+    ) -> Vec<&TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>> {
         coll_keys.iter().filter_map(|key| self.get(key)).collect()
     }
 }
@@ -126,14 +129,16 @@ impl<'a> ByHBox<'a, StaticCollRec> for Vec<&'a StaticCollRec> {
     }
 }
 impl<'a, TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>
-    ByHBox<'a, TriggerCollRec<TriggerRxKind, TriggerTxKind>>
-    for Vec<&'a TriggerCollRec<TriggerRxKind, TriggerTxKind>>
+    ByHBox<'a, TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>
+    for Vec<&'a TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>
 {
     fn by_rx_hbox(
         self,
-    ) -> HashMap<HBoxMarker, Vec<&'a TriggerCollRec<TriggerRxKind, TriggerTxKind>>> {
-        let mut result =
-            HashMap::<HBoxMarker, Vec<&'a TriggerCollRec<TriggerRxKind, TriggerTxKind>>>::new();
+    ) -> HashMap<HBoxMarker, Vec<&'a TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>> {
+        let mut result = HashMap::<
+            HBoxMarker,
+            Vec<&'a TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>,
+        >::new();
         for rec in self.into_iter() {
             if result.get_mut(&rec.rx_hbox).is_some() {
                 result.get_mut(&rec.rx_hbox).unwrap().push(rec);
@@ -145,9 +150,11 @@ impl<'a, TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>
     }
     fn by_tx_hbox(
         self,
-    ) -> HashMap<HBoxMarker, Vec<&'a TriggerCollRec<TriggerRxKind, TriggerTxKind>>> {
-        let mut result =
-            HashMap::<HBoxMarker, Vec<&'a TriggerCollRec<TriggerRxKind, TriggerTxKind>>>::new();
+    ) -> HashMap<HBoxMarker, Vec<&'a TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>> {
+        let mut result = HashMap::<
+            HBoxMarker,
+            Vec<&'a TriggerCollRecGeneric<TriggerRxKind, TriggerTxKind>>,
+        >::new();
         for rec in self.into_iter() {
             if result.get_mut(&rec.tx_hbox).is_some() {
                 result.get_mut(&rec.tx_hbox).unwrap().push(rec);
@@ -161,11 +168,11 @@ impl<'a, TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>
 
 fn reset_colls_every_frame<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
     mut static_colls: ResMut<StaticColls>,
-    mut trigger_colls: ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+    mut trigger_colls: ResMut<TriggerCollsGeneric<TriggerRxKind, TriggerTxKind>>,
     mut srx_ctrls: Query<&mut StaticRx>,
     mut stx_ctrls: Query<&mut StaticTx>,
-    mut trx_ctrls: Query<&mut TriggerRx<TriggerRxKind>>,
-    mut ttx_ctrls: Query<&mut TriggerTx<TriggerTxKind>>,
+    mut trx_ctrls: Query<&mut TriggerRxGeneric<TriggerRxKind>>,
+    mut ttx_ctrls: Query<&mut TriggerTxGeneric<TriggerTxKind>>,
 ) {
     // Eh at some point we may want to shrink memory used, but this probably fine
     static_colls.map.clear();
@@ -187,7 +194,7 @@ pub(super) fn register_colls<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerK
     app: &mut App,
 ) {
     app.insert_resource(StaticColls { map: default() });
-    app.insert_resource(TriggerColls::<TriggerRxKind, TriggerTxKind> { map: default() });
+    app.insert_resource(TriggerCollsGeneric::<TriggerRxKind, TriggerTxKind> { map: default() });
 
     app.add_systems(
         First,

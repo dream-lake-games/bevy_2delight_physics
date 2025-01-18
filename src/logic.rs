@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 
 use crate::{
-    colls::{StaticCollRec, StaticColls, TriggerCollRec, TriggerColls},
+    colls::{StaticCollRec, StaticColls, TriggerCollRecGeneric, TriggerCollsGeneric},
     dyno::Dyno,
     hbox::HBox,
     pos::Pos,
     prelude::{
-        BulletTime, BulletTimeClass, StaticRx, StaticRxKind, StaticTx, StaticTxKind, TriggerKind,
-        TriggerRx, TriggerTx,
+        BulletTimeClass, BulletTimeGeneric, StaticRx, StaticRxKind, StaticTx, StaticTxKind,
+        TriggerKind, TriggerRxGeneric, TriggerTxGeneric,
     },
     PhysicsSet,
 };
@@ -27,13 +27,13 @@ fn invariants(
 
 /// Moves dynos that have no statics and no trigger receivers
 fn move_uninteresting_dynos<TriggerRxKind: TriggerKind, TimeClass: BulletTimeClass>(
-    bullet_time: Res<BulletTime<TimeClass>>,
+    bullet_time: Res<BulletTimeGeneric<TimeClass>>,
     mut ents: Query<
         (&Dyno, &mut Pos),
         (
             Without<StaticRx>,
             Without<StaticTx>,
-            Without<TriggerRx<TriggerRxKind>>,
+            Without<TriggerRxGeneric<TriggerRxKind>>,
         ),
     >,
 ) {
@@ -44,7 +44,7 @@ fn move_uninteresting_dynos<TriggerRxKind: TriggerKind, TimeClass: BulletTimeCla
 
 /// Moves static txs
 fn move_static_txs<TimeClass: BulletTimeClass>(
-    bullet_time: Res<BulletTime<TimeClass>>,
+    bullet_time: Res<BulletTimeGeneric<TimeClass>>,
     mut ents: Query<(&Dyno, &mut Pos), (Without<StaticRx>, With<StaticTx>)>,
 ) {
     for (dyno, mut pos) in &mut ents {
@@ -60,13 +60,13 @@ fn resolve_collisions<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
     my_pos: &mut Pos,
     my_vel: &mut Vec2,
     my_srx: Option<(Entity, &StaticRx)>,
-    my_trx: Option<(Entity, &TriggerRx<TriggerRxKind>)>,
+    my_trx: Option<(Entity, &TriggerRxGeneric<TriggerRxKind>)>,
     pos_q: &Query<&mut Pos>,
     dyno_q: &Query<&mut Dyno>,
     stx_q: &Query<(Entity, &mut StaticTx)>,
-    ttx_q: &Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
+    ttx_q: &Query<(Entity, &mut TriggerTxGeneric<TriggerTxKind>)>,
     static_colls: &mut ResMut<StaticColls>,
-    trigger_colls: &mut ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+    trigger_colls: &mut ResMut<TriggerCollsGeneric<TriggerRxKind, TriggerTxKind>>,
 ) {
     // Handle static collisions
     struct StaticCollCandidate {
@@ -192,7 +192,7 @@ fn resolve_collisions<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
                 .filter(|candidate| candidate.eid != my_eid)
                 .filter(|candidate| my_thbox.overlaps_with(&candidate.thbox));
             for candidate in candidates {
-                let coll_rec = TriggerCollRec {
+                let coll_rec = TriggerCollRecGeneric {
                     rx_pos: my_pos.clone(),
                     rx_ctrl: my_eid,
                     rx_kind: my_trx_comp.kind.clone(),
@@ -213,10 +213,10 @@ fn resolve_collisions<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
 fn populate_ctrl_coll_keys<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind>(
     srx_q: &mut Query<(Entity, &mut StaticRx)>,
     stx_q: &mut Query<(Entity, &mut StaticTx)>,
-    trx_q: &mut Query<(Entity, &mut TriggerRx<TriggerRxKind>)>,
-    ttx_q: &mut Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
+    trx_q: &mut Query<(Entity, &mut TriggerRxGeneric<TriggerRxKind>)>,
+    ttx_q: &mut Query<(Entity, &mut TriggerTxGeneric<TriggerTxKind>)>,
     static_colls: &ResMut<StaticColls>,
-    trigger_colls: &ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+    trigger_colls: &ResMut<TriggerCollsGeneric<TriggerRxKind, TriggerTxKind>>,
 ) {
     for (key, coll) in &static_colls.map {
         if let Ok((_, mut srx_ctrl)) = srx_q.get_mut(coll.rx_ctrl) {
@@ -242,15 +242,15 @@ fn move_interesting_dynos<
     TriggerTxKind: TriggerKind,
     TimeClass: BulletTimeClass,
 >(
-    bullet_time: Res<BulletTime<TimeClass>>,
+    bullet_time: Res<BulletTimeGeneric<TimeClass>>,
     mut pos_q: Query<&mut Pos>,
     mut dyno_q: Query<&mut Dyno>,
     mut srx_q: Query<(Entity, &mut StaticRx)>,
     mut stx_q: Query<(Entity, &mut StaticTx)>,
-    mut trx_q: Query<(Entity, &mut TriggerRx<TriggerRxKind>)>,
-    mut ttx_q: Query<(Entity, &mut TriggerTx<TriggerTxKind>)>,
+    mut trx_q: Query<(Entity, &mut TriggerRxGeneric<TriggerRxKind>)>,
+    mut ttx_q: Query<(Entity, &mut TriggerTxGeneric<TriggerTxKind>)>,
     mut static_colls: ResMut<StaticColls>,
-    mut trigger_colls: ResMut<TriggerColls<TriggerRxKind, TriggerTxKind>>,
+    mut trigger_colls: ResMut<TriggerCollsGeneric<TriggerRxKind, TriggerTxKind>>,
     // Objects that have a static rx. They may also have a trigger rx.
     // Basically all the stuff we should move in this system
     ents_q: Query<
@@ -258,7 +258,7 @@ fn move_interesting_dynos<
         (
             With<Pos>,
             Without<StaticTx>,
-            Or<(With<StaticRx>, With<TriggerRx<TriggerRxKind>>)>,
+            Or<(With<StaticRx>, With<TriggerRxGeneric<TriggerRxKind>>)>,
         ),
     >,
 ) {

@@ -7,7 +7,7 @@ use crate::{
     triggers::TriggerKind,
 };
 
-pub struct PhysicsPlugin<
+pub struct PhysicsPluginGeneric<
     TriggerRxKind: TriggerKind,
     TriggerTxKind: TriggerKind,
     TimeClass: BulletTimeClass = BulletTimeClassDefault,
@@ -15,7 +15,7 @@ pub struct PhysicsPlugin<
     _pd: std::marker::PhantomData<(TriggerRxKind, TriggerTxKind, TimeClass)>,
 }
 impl<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind, TimeClass: BulletTimeClass> Default
-    for PhysicsPlugin<TriggerRxKind, TriggerTxKind, TimeClass>
+    for PhysicsPluginGeneric<TriggerRxKind, TriggerTxKind, TimeClass>
 {
     fn default() -> Self {
         Self {
@@ -24,7 +24,7 @@ impl<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind, TimeClass: BulletTi
     }
 }
 impl<TriggerRxKind: TriggerKind, TriggerTxKind: TriggerKind, TimeClass: BulletTimeClass> Plugin
-    for PhysicsPlugin<TriggerRxKind, TriggerTxKind, TimeClass>
+    for PhysicsPluginGeneric<TriggerRxKind, TriggerTxKind, TimeClass>
 {
     fn build(&self, app: &mut App) {
         colls::register_colls::<TriggerRxKind, TriggerTxKind>(app);

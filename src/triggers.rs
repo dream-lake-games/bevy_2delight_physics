@@ -12,11 +12,11 @@ pub(crate) struct TriggerRxComp<TriggerRxKind: TriggerKind> {
     pub(crate) hbox: HBox,
 }
 #[derive(Component)]
-pub struct TriggerRx<TriggerRxKind: TriggerKind> {
+pub struct TriggerRxGeneric<TriggerRxKind: TriggerKind> {
     pub(crate) comps: Vec<TriggerRxComp<TriggerRxKind>>,
     pub coll_keys: Vec<CollKey>,
 }
-impl<TriggerRxKind: TriggerKind> TriggerRx<TriggerRxKind> {
+impl<TriggerRxKind: TriggerKind> TriggerRxGeneric<TriggerRxKind> {
     pub fn single(kind: TriggerRxKind, hbox: HBox) -> Self {
         Self::new(vec![(kind, hbox)])
     }
@@ -36,11 +36,11 @@ pub(crate) struct TriggerTxComp<TriggerTxKind: TriggerKind> {
     pub(crate) hbox: HBox,
 }
 #[derive(Component)]
-pub struct TriggerTx<TriggerTxKind: TriggerKind> {
+pub struct TriggerTxGeneric<TriggerTxKind: TriggerKind> {
     pub(crate) comps: Vec<TriggerTxComp<TriggerTxKind>>,
     pub coll_keys: Vec<CollKey>,
 }
-impl<TriggerTxKind: TriggerKind> TriggerTx<TriggerTxKind> {
+impl<TriggerTxKind: TriggerKind> TriggerTxGeneric<TriggerTxKind> {
     pub fn single(kind: TriggerTxKind, hbox: HBox) -> Self {
         Self::new(vec![(kind, hbox)])
     }
