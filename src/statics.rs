@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{colls::CollKey, hbox::HBox};
+use crate::{colls::CollKey, hbox::HBox, pos::Pos};
 
 #[derive(Clone, Copy, Debug, Reflect, PartialEq, Eq, std::hash::Hash)]
 pub enum StaticRxKind {
@@ -60,5 +60,11 @@ impl StaticTx {
                 .collect(),
             coll_keys: vec![],
         }
+    }
+    pub fn get_thboxes(&self, pos: Pos) -> Vec<HBox> {
+        self.comps
+            .iter()
+            .map(|comp| comp.hbox.translated(pos.x, pos.y))
+            .collect()
     }
 }

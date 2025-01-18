@@ -93,8 +93,17 @@ impl HBox {
         let my_y_min = self.offset.y - fsize.y / 2.0;
         let my_y_max = self.offset.y + fsize.y / 2.0;
 
-        let x_dist = (my_x_min - point.x).abs().min((point.x - my_x_max).abs());
-        let y_dist = (my_y_min - point.y).abs().min((point.y - my_y_max).abs());
+        let x_dist = if point.x >= my_x_min && point.x <= my_x_max {
+            0.0
+        } else {
+            (my_x_min - point.x).abs().min((point.x - my_x_max).abs())
+        };
+
+        let y_dist = if point.y >= my_y_min && point.y <= my_y_max {
+            0.0
+        } else {
+            (my_y_min - point.y).abs().min((point.y - my_y_max).abs())
+        };
 
         x_dist + y_dist
     }
